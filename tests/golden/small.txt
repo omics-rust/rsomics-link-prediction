@@ -1,0 +1,6 @@
+# edge list
+x y
+x z
+y z
+y w
+z q

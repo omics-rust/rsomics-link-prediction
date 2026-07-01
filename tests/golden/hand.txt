@@ -1,0 +1,9 @@
+# edge list
+a b
+a c
+b c
+b d
+c e
+d e
+a d
+e f
