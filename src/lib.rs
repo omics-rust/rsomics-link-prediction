@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::VecDeque;
 
 use serde::Serialize;
 
@@ -16,6 +17,7 @@ pub enum Method {
     AdamicAdar,
     ResourceAllocation,
     PreferentialAttachment,
+    CommonNeighborCentrality,
 }
 
 impl Method {
@@ -25,9 +27,11 @@ impl Method {
             "adamic-adar" => Ok(Method::AdamicAdar),
             "resource-allocation" => Ok(Method::ResourceAllocation),
             "preferential-attachment" => Ok(Method::PreferentialAttachment),
+            "common-neighbor-centrality" => Ok(Method::CommonNeighborCentrality),
             other => Err(format!(
                 "unknown method '{other}' (expected jaccard, adamic-adar, \
-                 resource-allocation, or preferential-attachment)"
+                 resource-allocation, preferential-attachment, or \
+                 common-neighbor-centrality)"
             )),
         }
     }
@@ -144,6 +148,30 @@ impl Graph {
             .filter(move |&w| w != u && w != v && other.contains(&w))
     }
 
+    /// Hop distance `u→v` (edges on a shortest path), matching
+    /// `nx.shortest_path_length`. `None` when `v` is unreachable from `u`.
+    fn bfs_dist(&self, u: usize, v: usize) -> Option<usize> {
+        if u == v {
+            return Some(0);
+        }
+        let mut seen = vec![false; self.adj_sorted.len()];
+        let mut q: VecDeque<(usize, usize)> = VecDeque::new();
+        seen[u] = true;
+        q.push_back((u, 0));
+        while let Some((node, d)) = q.pop_front() {
+            for &w in &self.adj_sorted[node] {
+                if w == v {
+                    return Some(d + 1);
+                }
+                if !seen[w] {
+                    seen[w] = true;
+                    q.push_back((w, d + 1));
+                }
+            }
+        }
+        None
+    }
+
     fn score_pair(&self, method: Method, u: usize, v: usize) -> f64 {
         match method {
             Method::Jaccard => {
@@ -171,6 +199,11 @@ impl Graph {
                 s + 0.0
             }
             Method::PreferentialAttachment => (self.deg[u] * self.deg[v]) as f64,
+            // CCPA needs alpha + BFS distance; it is scored by the closure in
+            // `link_prediction_from_edge_list`, never here.
+            Method::CommonNeighborCentrality => {
+                unreachable!("common-neighbor-centrality is scored with alpha, not score_pair")
+            }
         }
     }
 
@@ -207,8 +240,31 @@ pub fn link_prediction_from_edge_list(
     input: &str,
     method: Method,
     pairs: Option<&[(String, String)]>,
+    alpha: f64,
 ) -> anyhow::Result<Vec<Prediction>> {
     let g = Graph::from_edge_list(input);
+
+    // CCPA (`nx.common_neighbor_centrality`) is the only alpha/distance-bearing
+    // score: alpha·|CN| + (1-alpha)·N/d_uv, where d_uv is the BFS hop distance.
+    // Matching nx, `alpha == 1` short-circuits to |CN| (no distance needed), and
+    // an unreachable pair takes d_uv = ∞ so the second term vanishes to 0.
+    #[allow(clippy::float_cmp)]
+    let score = |u: usize, v: usize| -> f64 {
+        match method {
+            Method::CommonNeighborCentrality => {
+                let cn = g.common_neighbors(u, v).count() as f64;
+                if alpha == 1.0 {
+                    cn
+                } else {
+                    match g.bfs_dist(u, v) {
+                        Some(d) => alpha * cn + (1.0 - alpha) * g.n_nodes() as f64 / d as f64,
+                        None => alpha * cn,
+                    }
+                }
+            }
+            _ => g.score_pair(method, u, v),
+        }
+    };
 
     let out = match pairs {
         None => {
@@ -219,7 +275,7 @@ pub fn link_prediction_from_edge_list(
                     if g.adjacent(u, v) {
                         continue;
                     }
-                    let score = g.score_pair(method, u, v);
+                    let score = score(u, v);
                     // Emit each unordered pair with the endpoint whose label sorts
                     // first as `u`, so the default output is deterministic by label
                     // (nx `non_edges` iteration order is set-pop, nondeterministic).
@@ -250,7 +306,7 @@ pub fn link_prediction_from_edge_list(
                 let ub = g
                     .id_of(b)
                     .ok_or_else(|| anyhow::anyhow!("node {b} not in graph (present in --pairs)"))?;
-                let score = g.score_pair(method, ua, ub);
+                let score = score(ua, ub);
                 out.push(Prediction {
                     u: a.clone(),
                     v: b.clone(),

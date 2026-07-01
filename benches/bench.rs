@@ -75,6 +75,7 @@ fn bench(c: &mut Criterion) {
                 std::hint::black_box(&graph),
                 Method::Jaccard,
                 Some(std::hint::black_box(&pairs)),
+                0.8,
             )
             .unwrap()
         })
@@ -86,6 +87,19 @@ fn bench(c: &mut Criterion) {
                 std::hint::black_box(&graph),
                 Method::AdamicAdar,
                 Some(std::hint::black_box(&pairs)),
+                0.8,
+            )
+            .unwrap()
+        })
+    });
+
+    c.bench_function("ccpa_gnm500_3000_2000pairs", |b| {
+        b.iter(|| {
+            link_prediction_from_edge_list(
+                std::hint::black_box(&graph),
+                Method::CommonNeighborCentrality,
+                Some(std::hint::black_box(&pairs)),
+                0.8,
             )
             .unwrap()
         })

@@ -1,0 +1,7 @@
+# two disconnected triangles
+a b
+b c
+a c
+x y
+y z
+x z

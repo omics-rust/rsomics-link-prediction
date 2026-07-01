@@ -17,6 +17,8 @@ const GNM1_PAIRS: &str = include_str!("golden/gnm1_pairs.txt");
 const GNM2: &str = include_str!("golden/gnm2.txt");
 const GNM2_PAIRS: &str = include_str!("golden/gnm2_pairs.txt");
 const SMALL: &str = include_str!("golden/small.txt");
+const DISC: &str = include_str!("golden/disc.txt");
+const DISC_PAIRS: &str = include_str!("golden/disc_pairs.txt");
 
 // -- golden scores from networkx 3.6.1 (do not edit) --
 const HAND_JACCARD: &[f64] = &[0.5, 0.0, 0.5, 1.0, 0.0, 0.5, 0.3333333333333333];
@@ -154,6 +156,67 @@ const GNM2_RESOURCE_ALLOCATION: &[f64] = &[
 ];
 const GNM2_PREFERENTIAL_ATTACHMENT: &[u64] = &[119, 64, 66, 144, 70, 55, 70, 90, 98, 96];
 
+// -- common-neighbor-centrality (CCPA), nx.common_neighbor_centrality --
+// _08 = default alpha 0.8; _10 = alpha 1.0 (score collapses to |common neighbors|).
+const HAND_CCPA_08: &[f64] = &[
+    2.2,
+    0.3999999999999999,
+    2.2,
+    3.0,
+    0.3999999999999999,
+    2.8,
+    1.4,
+];
+const HAND_CCPA_10: &[f64] = &[2.0, 0.0, 2.0, 3.0, 0.0, 2.0, 1.0];
+
+const KARATE_CCPA_08: &[f64] = &[
+    6.6,
+    4.199999999999999,
+    6.799999999999999,
+    7.599999999999999,
+    5.0,
+    6.799999999999999,
+    8.399999999999999,
+    12.399999999999999,
+    7.599999999999999,
+    2.266666666666666,
+];
+const KARATE_CCPA_10: &[f64] = &[4.0, 1.0, 0.0, 1.0, 2.0, 0.0, 2.0, 7.0, 1.0, 0.0];
+
+const GNM1_CCPA_08: &[f64] = &[
+    5.6,
+    5.6,
+    2.666666666666666,
+    5.6,
+    1.9999999999999996,
+    4.799999999999999,
+    8.799999999999999,
+    1.9999999999999996,
+    6.3999999999999995,
+    6.3999999999999995,
+];
+const GNM1_CCPA_10: &[f64] = &[2.0, 2.0, 0.0, 2.0, 0.0, 1.0, 1.0, 0.0, 3.0, 3.0];
+
+const GNM2_CCPA_08: &[f64] = &[
+    8.399999999999999,
+    3.9999999999999987,
+    7.599999999999998,
+    7.599999999999998,
+    6.799999999999998,
+    7.599999999999998,
+    7.599999999999998,
+    3.9999999999999987,
+    13.599999999999996,
+    7.599999999999998,
+];
+const GNM2_CCPA_10: &[f64] = &[3.0, 0.0, 2.0, 2.0, 1.0, 2.0, 2.0, 0.0, 2.0, 2.0];
+
+// Disconnected pairs: nx takes d_uv = ∞ (no NetworkXNoPath from the ebunch
+// path), so the distance term is 0 and the score is alpha·|CN| = 0 (a pair in
+// different components shares no common neighbor).
+const DISC_CCPA_08: &[f64] = &[0.0, 0.0];
+const DISC_CCPA_10: &[f64] = &[0.0, 0.0];
+
 const SMALL_DEFAULT_JAC_PAIRS: &[(&str, &str)] =
     &[("q", "w"), ("q", "x"), ("q", "y"), ("w", "x"), ("w", "z")];
 const SMALL_DEFAULT_JAC_SCORES: &[f64] = &[0.0, 0.5, 0.3333333333333333, 0.5, 0.3333333333333333];
@@ -175,8 +238,12 @@ fn parse_pairs(text: &str) -> Vec<(String, String)> {
 }
 
 fn run(graph: &str, pairs_text: &str, method: Method) -> Vec<Prediction> {
+    run_alpha(graph, pairs_text, method, 0.8)
+}
+
+fn run_alpha(graph: &str, pairs_text: &str, method: Method, alpha: f64) -> Vec<Prediction> {
     let pairs = parse_pairs(pairs_text);
-    link_prediction_from_edge_list(graph, method, Some(&pairs)).expect("scoring")
+    link_prediction_from_edge_list(graph, method, Some(&pairs), alpha).expect("scoring")
 }
 
 fn assert_floats(got: &[Prediction], golden: &[f64]) {
@@ -214,6 +281,15 @@ macro_rules! case {
             assert_ints(&run($graph, $pairs, $method), $golden);
         }
     };
+    ($name:ident, $graph:ident, $pairs:ident, $alpha:expr, ccpa $golden:ident) => {
+        #[test]
+        fn $name() {
+            assert_floats(
+                &run_alpha($graph, $pairs, Method::CommonNeighborCentrality, $alpha),
+                $golden,
+            );
+        }
+    };
 }
 
 case!(hand_jaccard, HAND, HAND_PAIRS, Method::Jaccard, floats HAND_JACCARD);
@@ -236,9 +312,20 @@ case!(gnm2_adamic_adar, GNM2, GNM2_PAIRS, Method::AdamicAdar, floats GNM2_ADAMIC
 case!(gnm2_resource_allocation, GNM2, GNM2_PAIRS, Method::ResourceAllocation, floats GNM2_RESOURCE_ALLOCATION);
 case!(gnm2_preferential_attachment, GNM2, GNM2_PAIRS, Method::PreferentialAttachment, ints GNM2_PREFERENTIAL_ATTACHMENT);
 
+case!(hand_ccpa_08, HAND, HAND_PAIRS, 0.8, ccpa HAND_CCPA_08);
+case!(hand_ccpa_10, HAND, HAND_PAIRS, 1.0, ccpa HAND_CCPA_10);
+case!(karate_ccpa_08, KARATE, KARATE_PAIRS, 0.8, ccpa KARATE_CCPA_08);
+case!(karate_ccpa_10, KARATE, KARATE_PAIRS, 1.0, ccpa KARATE_CCPA_10);
+case!(gnm1_ccpa_08, GNM1, GNM1_PAIRS, 0.8, ccpa GNM1_CCPA_08);
+case!(gnm1_ccpa_10, GNM1, GNM1_PAIRS, 1.0, ccpa GNM1_CCPA_10);
+case!(gnm2_ccpa_08, GNM2, GNM2_PAIRS, 0.8, ccpa GNM2_CCPA_08);
+case!(gnm2_ccpa_10, GNM2, GNM2_PAIRS, 1.0, ccpa GNM2_CCPA_10);
+case!(disc_ccpa_08, DISC, DISC_PAIRS, 0.8, ccpa DISC_CCPA_08);
+case!(disc_ccpa_10, DISC, DISC_PAIRS, 1.0, ccpa DISC_CCPA_10);
+
 #[test]
 fn small_default_all_non_edges_jaccard() {
-    let got = link_prediction_from_edge_list(SMALL, Method::Jaccard, None).expect("scoring");
+    let got = link_prediction_from_edge_list(SMALL, Method::Jaccard, None, 0.8).expect("scoring");
     assert_eq!(
         got.len(),
         SMALL_DEFAULT_JAC_PAIRS.len(),

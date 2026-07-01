@@ -16,9 +16,14 @@ struct Cli {
     #[arg(
         long,
         default_value = "jaccard",
-        value_parser = ["jaccard", "adamic-adar", "resource-allocation", "preferential-attachment"],
+        value_parser = ["jaccard", "adamic-adar", "resource-allocation", "preferential-attachment", "common-neighbor-centrality"],
     )]
     method: String,
+
+    /// CCPA mixing parameter for `--method common-neighbor-centrality`:
+    /// alpha·|CN| + (1-alpha)·N/d_uv. Ignored by the other methods.
+    #[arg(long, default_value_t = 0.8)]
+    alpha: f64,
 
     /// File of `u v` node pairs to score (one per line). Omit to score all
     /// non-adjacent pairs (nx `ebunch=None`).
@@ -58,7 +63,7 @@ fn run(cli: &Cli) -> anyhow::Result<()> {
         None => None,
     };
 
-    let preds = link_prediction_from_edge_list(&input, method, pairs.as_deref())?;
+    let preds = link_prediction_from_edge_list(&input, method, pairs.as_deref(), cli.alpha)?;
 
     let stdout = io::stdout();
     let mut w = stdout.lock();
