@@ -1,0 +1,16 @@
+# self-loop adversarial graph for networkx 3.6.1 compat.
+# self-loops sit on common neighbors (c) and on an endpoint (a),
+# so degree-based scores (adamic-adar, resource-allocation,
+# preferential-attachment) and the jaccard union all diverge from
+# the self-loop-dropping implementation.
+a b
+b c
+a c
+c c
+d a
+d b
+e d
+e c
+a a
+f c
+f d

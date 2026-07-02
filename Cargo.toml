@@ -1,6 +1,6 @@
 [package]
 name = "rsomics-link-prediction"
-version = "0.2.0"
+version = "0.2.1"
 description = "Neighborhood-overlap link-prediction scores (Jaccard, Adamic-Adar, resource allocation, preferential attachment, common-neighbor-centrality/CCPA) — value-exact Rust port of networkx link_prediction"
 edition = "2021"
 license = "MIT OR Apache-2.0"

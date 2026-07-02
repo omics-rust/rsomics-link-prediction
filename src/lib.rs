@@ -46,7 +46,9 @@ pub struct Prediction {
 }
 
 /// Interned undirected graph matching `nx.Graph` semantics: parallel edges
-/// deduped, self-loops dropped, node ids assigned in first-seen order.
+/// deduped, self-loops kept (a self-loop makes a node its own neighbor and
+/// counts twice toward its degree, exactly as `nx.Graph`), node ids assigned
+/// in first-seen order.
 pub struct Graph {
     labels: Vec<String>,
     ids: HashMap<String, usize>,
@@ -88,9 +90,6 @@ impl Graph {
             };
             let ua = intern(a, &mut labels, &mut ids, &mut adj_set);
             let ub = intern(b, &mut labels, &mut ids, &mut adj_set);
-            if ua == ub {
-                continue; // self-loop dropped, matching nx.Graph
-            }
             adj_set[ua].insert(ub);
             adj_set[ub].insert(ua);
         }
@@ -98,10 +97,12 @@ impl Graph {
         let n = labels.len();
         let mut adj_sorted = Vec::with_capacity(n);
         let mut deg = Vec::with_capacity(n);
-        for s in &adj_set {
+        // A self-loop is a single edge but nx counts it twice toward degree, so
+        // a node that is its own neighbor gets `+1` on top of its set size.
+        for (u, s) in adj_set.iter().enumerate() {
             let mut v: Vec<usize> = s.iter().copied().collect();
             v.sort_unstable();
-            deg.push(v.len());
+            deg.push(v.len() + s.contains(&u) as usize);
             adj_sorted.push(v);
         }
 
@@ -219,7 +220,9 @@ impl Graph {
             .iter()
             .filter(|w| !self.adj_set[big].contains(w))
             .count();
-        self.deg[big] + extra
+        // Set cardinality of the union, not degree: a self-loop inflates degree
+        // but adds the node to its own neighbor set only once.
+        self.adj_sorted[big].len() + extra
     }
 }
 
@@ -354,11 +357,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn selfloop_and_parallel_deduped() {
+    fn parallel_deduped_selfloop_kept_counts_twice() {
+        // Parallel edges collapse to one; the self-loop `a a` stays and adds 2
+        // to a's degree (nx.Graph semantics): a sees {b, a}, deg = 2 + 1 = 3.
         let g = Graph::from_edge_list("a b\na b\nb a\na a\n");
         assert_eq!(g.n_nodes(), 2);
-        assert_eq!(g.deg[0], 1);
+        assert_eq!(g.deg[0], 3);
         assert_eq!(g.deg[1], 1);
+    }
+
+    #[test]
+    fn selfloop_on_common_neighbor_lifts_degree() {
+        // Triangle a-b-c plus self-loop c-c: deg(c) = 4, so adamic-adar(a,b) =
+        // 1/ln(4) and resource-allocation(a,b) = 1/4 (oracle: networkx 3.6.1).
+        let g = Graph::from_edge_list("a b\nb c\na c\nc c\n");
+        let a = g.id_of("a").unwrap();
+        let b = g.id_of("b").unwrap();
+        let c = g.id_of("c").unwrap();
+        assert_eq!(g.deg[c], 4);
+        assert!((g.score_pair(Method::AdamicAdar, a, b) - 1.0 / 4.0_f64.ln()).abs() < 1e-12);
+        assert!((g.score_pair(Method::ResourceAllocation, a, b) - 0.25).abs() < 1e-12);
     }
 
     #[test]

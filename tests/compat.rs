@@ -19,6 +19,8 @@ const GNM2_PAIRS: &str = include_str!("golden/gnm2_pairs.txt");
 const SMALL: &str = include_str!("golden/small.txt");
 const DISC: &str = include_str!("golden/disc.txt");
 const DISC_PAIRS: &str = include_str!("golden/disc_pairs.txt");
+const SELFLOOP: &str = include_str!("golden/selfloop.txt");
+const SELFLOOP_PAIRS: &str = include_str!("golden/selfloop_pairs.txt");
 
 // -- golden scores from networkx 3.6.1 (do not edit) --
 const HAND_JACCARD: &[f64] = &[0.5, 0.0, 0.5, 1.0, 0.0, 0.5, 0.3333333333333333];
@@ -217,6 +219,40 @@ const GNM2_CCPA_10: &[f64] = &[3.0, 0.0, 2.0, 2.0, 1.0, 2.0, 2.0, 0.0, 2.0, 2.0]
 const DISC_CCPA_08: &[f64] = &[0.0, 0.0];
 const DISC_CCPA_10: &[f64] = &[0.0, 0.0];
 
+// Self-loops on a common neighbor (c) and on an endpoint (a): nx.Graph keeps
+// them and counts a self-loop twice toward degree, so every degree-based score
+// diverges from a self-loop-dropping port. Goldens from networkx 3.6.1.
+const SELFLOOP_JACCARD: &[f64] = &[
+    0.5,
+    0.5,
+    0.6666666666666666,
+    0.8,
+    0.16666666666666666,
+    1.0,
+    0.5,
+];
+const SELFLOOP_ADAMIC_ADAR: &[f64] = &[
+    1.279458146995729,
+    1.279458146995729,
+    1.279458146995729,
+    4.416964242964376,
+    0.6213349345596119,
+    1.279458146995729,
+    1.279458146995729,
+];
+const SELFLOOP_RESOURCE_ALLOCATION: &[f64] = &[
+    0.41666666666666663,
+    0.41666666666666663,
+    0.41666666666666663,
+    1.5333333333333332,
+    0.2,
+    0.41666666666666663,
+    0.41666666666666663,
+];
+const SELFLOOP_PREFERENTIAL_ATTACHMENT: &[u64] = &[15, 10, 6, 24, 12, 4, 10];
+const SELFLOOP_CCPA_08: &[f64] = &[2.8, 2.2, 2.2, 3.8, 1.9999999999999998, 2.2, 2.2];
+const SELFLOOP_CCPA_10: &[f64] = &[2.0, 2.0, 2.0, 4.0, 1.0, 2.0, 2.0];
+
 const SMALL_DEFAULT_JAC_PAIRS: &[(&str, &str)] =
     &[("q", "w"), ("q", "x"), ("q", "y"), ("w", "x"), ("w", "z")];
 const SMALL_DEFAULT_JAC_SCORES: &[f64] = &[0.0, 0.5, 0.3333333333333333, 0.5, 0.3333333333333333];
@@ -322,6 +358,13 @@ case!(gnm2_ccpa_08, GNM2, GNM2_PAIRS, 0.8, ccpa GNM2_CCPA_08);
 case!(gnm2_ccpa_10, GNM2, GNM2_PAIRS, 1.0, ccpa GNM2_CCPA_10);
 case!(disc_ccpa_08, DISC, DISC_PAIRS, 0.8, ccpa DISC_CCPA_08);
 case!(disc_ccpa_10, DISC, DISC_PAIRS, 1.0, ccpa DISC_CCPA_10);
+
+case!(selfloop_jaccard, SELFLOOP, SELFLOOP_PAIRS, Method::Jaccard, floats SELFLOOP_JACCARD);
+case!(selfloop_adamic_adar, SELFLOOP, SELFLOOP_PAIRS, Method::AdamicAdar, floats SELFLOOP_ADAMIC_ADAR);
+case!(selfloop_resource_allocation, SELFLOOP, SELFLOOP_PAIRS, Method::ResourceAllocation, floats SELFLOOP_RESOURCE_ALLOCATION);
+case!(selfloop_preferential_attachment, SELFLOOP, SELFLOOP_PAIRS, Method::PreferentialAttachment, ints SELFLOOP_PREFERENTIAL_ATTACHMENT);
+case!(selfloop_ccpa_08, SELFLOOP, SELFLOOP_PAIRS, 0.8, ccpa SELFLOOP_CCPA_08);
+case!(selfloop_ccpa_10, SELFLOOP, SELFLOOP_PAIRS, 1.0, ccpa SELFLOOP_CCPA_10);
 
 #[test]
 fn small_default_all_non_edges_jaccard() {
