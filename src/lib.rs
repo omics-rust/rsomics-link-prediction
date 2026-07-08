@@ -80,8 +80,10 @@ impl Graph {
         };
 
         for line in input.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
+            // nx.parse_edgelist strips a '#' comment anywhere in the line before
+            // tokenising, so `1 2#c` is edge (1,2) and `0 #x` is a lone token.
+            let line = line.split('#').next().unwrap_or("").trim();
+            if line.is_empty() {
                 continue;
             }
             let mut it = line.split_whitespace();
@@ -397,6 +399,31 @@ mod tests {
         let v = g.id_of("1").unwrap();
         let s = g.score_pair(Method::Jaccard, u, v);
         assert!((s - 0.25).abs() < 1e-12);
+    }
+
+    #[test]
+    fn inline_hash_comment_matches_comment_free_graph() {
+        // `1 2#c` truncates to edge (1,2); `0 #x` truncates to the lone token `0`
+        // and adds no edge, so the graph must equal the comment-free edge list.
+        let with_comments = Graph::from_edge_list("0 1\n1 2#c\n2 3\n0 #x\n");
+        let clean = Graph::from_edge_list("0 1\n1 2\n2 3\n");
+        assert_eq!(with_comments.n_nodes(), clean.n_nodes());
+        for label in ["0", "1", "2", "3"] {
+            let u = with_comments.id_of(label).unwrap();
+            let v = clean.id_of(label).unwrap();
+            assert_eq!(with_comments.deg[u], clean.deg[v]);
+            let mut na: Vec<&str> = with_comments.adj_sorted[u]
+                .iter()
+                .map(|&i| with_comments.label(i))
+                .collect();
+            let mut nb: Vec<&str> = clean.adj_sorted[v]
+                .iter()
+                .map(|&i| clean.label(i))
+                .collect();
+            na.sort_unstable();
+            nb.sort_unstable();
+            assert_eq!(na, nb);
+        }
     }
 
     #[test]

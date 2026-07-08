@@ -39,8 +39,9 @@ fn read_pairs(path: &str) -> anyhow::Result<Vec<(String, String)>> {
         .map_err(|e| anyhow::anyhow!("cannot read --pairs file {path}: {e}"))?;
     let mut pairs = Vec::new();
     for line in text.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
+        // A '#' opens a comment anywhere in the line (nx edge-list semantics).
+        let line = line.split('#').next().unwrap_or("").trim();
+        if line.is_empty() {
             continue;
         }
         let mut it = line.split_whitespace();
